@@ -1,0 +1,9 @@
+name = Long Text Paragraphs Fix
+description = Fixes the long text tribbles issue for fields within Paragraphs that have unlimited values and custom text formats.
+backdrop = 1.x
+type = module
+package = Fields
+
+; Dependencies
+dependencies[] = paragraphs
+dependencies[] = field

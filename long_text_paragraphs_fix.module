@@ -1,0 +1,147 @@
+
+
+<?php
+/**
+ * @file
+ * Fixes the long text tribbles issue for Paragraph fields in Backdrop CMS.
+ *
+ * This module addresses the core issue where long text fields with unlimited
+ * values and custom text formats add empty field instances on each node save
+ * when used within Paragraphs.
+ */
+
+/**
+ * Implements hook_paragraphs_item_presave().
+ *
+ * Clean up empty long text field values before saving paragraph items.
+ */
+function long_text_paragraphs_fix_paragraphs_item_presave($paragraphs_item) {
+  // Get all fields attached to this paragraph bundle
+  $instances = field_info_instances('paragraphs_item', $paragraphs_item->bundle);
+
+  foreach ($instances as $field_name => $instance) {
+    $field_info = field_info_field($field_name);
+
+    // Only process long text fields with unlimited cardinality
+    if ($field_info['type'] == 'text_long' && $field_info['cardinality'] == FIELD_CARDINALITY_UNLIMITED) {
+      // Check if the field has a custom text format
+      if (!empty($instance['settings']['text_processing'])) {
+        _long_text_paragraphs_fix_clean_field($paragraphs_item, $field_name);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_field_attach_presave().
+ *
+ * Alternative hook to catch paragraph fields before they're saved with the node.
+ */
+function long_text_paragraphs_fix_field_attach_presave($entity_type, $entity) {
+  if ($entity_type == 'paragraphs_item') {
+    // Get all fields attached to this paragraph bundle
+    $instances = field_info_instances('paragraphs_item', $entity->bundle);
+
+    foreach ($instances as $field_name => $instance) {
+      $field_info = field_info_field($field_name);
+
+      // Only process long text fields with unlimited cardinality
+      if ($field_info['type'] == 'text_long' && $field_info['cardinality'] == FIELD_CARDINALITY_UNLIMITED) {
+        // Check if the field has a custom text format
+        if (!empty($instance['settings']['text_processing'])) {
+          _long_text_paragraphs_fix_clean_field($entity, $field_name);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Helper function to clean empty field values from a paragraph item.
+ *
+ * @param object $entity
+ *   The paragraph item entity.
+ * @param string $field_name
+ *   The name of the field to clean.
+ */
+function _long_text_paragraphs_fix_clean_field(&$entity, $field_name) {
+  // Get the field language
+  $langcode = field_language('paragraphs_item', $entity, $field_name);
+
+  // Check if field has any values
+  if (!empty($entity->{$field_name}[$langcode])) {
+    $cleaned_values = array();
+
+    // Filter out empty values
+    foreach ($entity->{$field_name}[$langcode] as $delta => $value) {
+      // Keep the value if it has actual content
+      if (!empty($value['value']) || (isset($value['value']) && $value['value'] !== '')) {
+        $cleaned_values[] = $value;
+      }
+    }
+
+    // If we have cleaned values, re-index them and update the entity
+    if (!empty($cleaned_values)) {
+      $entity->{$field_name}[$langcode] = array_values($cleaned_values);
+    }
+    // If no valid values remain, remove the field data entirely
+    else {
+      unset($entity->{$field_name}[$langcode]);
+    }
+  }
+}
+
+/**
+ * Implements hook_node_presave().
+ *
+ * Process paragraphs attached to nodes before the node is saved.
+ */
+function long_text_paragraphs_fix_node_presave($node) {
+  // Get all fields attached to this node type
+  $instances = field_info_instances('node', $node->type);
+
+  foreach ($instances as $field_name => $instance) {
+    $field_info = field_info_field($field_name);
+
+    // Check if this is a paragraphs field
+    if ($field_info['type'] == 'paragraphs') {
+      $langcode = field_language('node', $node, $field_name);
+
+      if (!empty($node->{$field_name}[$langcode])) {
+        foreach ($node->{$field_name}[$langcode] as $delta => $paragraph_ref) {
+          // Load the paragraph item if we have an ID
+          if (!empty($paragraph_ref['value'])) {
+            $paragraph_item = paragraphs_item_load($paragraph_ref['value']);
+
+            if ($paragraph_item) {
+              // Process the paragraph item's fields
+              _long_text_paragraphs_fix_process_paragraph_item($paragraph_item);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Helper function to process a paragraph item's long text fields.
+ *
+ * @param object $paragraph_item
+ *   The paragraph item to process.
+ */
+function _long_text_paragraphs_fix_process_paragraph_item($paragraph_item) {
+  $instances = field_info_instances('paragraphs_item', $paragraph_item->bundle);
+
+  foreach ($instances as $field_name => $instance) {
+    $field_info = field_info_field($field_name);
+
+    // Only process long text fields with unlimited cardinality
+    if ($field_info['type'] == 'text_long' && $field_info['cardinality'] == FIELD_CARDINALITY_UNLIMITED) {
+      // Check if the field has a custom text format
+      if (!empty($instance['settings']['text_processing'])) {
+        _long_text_paragraphs_fix_clean_field($paragraph_item, $field_name);
+      }
+    }
+  }
+}
