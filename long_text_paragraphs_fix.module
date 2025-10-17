@@ -1,9 +1,7 @@
-
-
 <?php
 /**
  * @file
- * Fixes the long text tribbles issue for Paragraph fields in Backdrop CMS.
+ * Fixes the long text field issue for Paragraph fields in Backdrop CMS.
  *
  * This module addresses the core issue where long text fields with unlimited
  * values and custom text formats add empty field instances on each node save
